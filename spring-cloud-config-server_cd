@@ -1,0 +1,54 @@
+pipeline {
+    agent any
+    options {
+        skipStagesAfterUnstable()
+        buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '15'))    
+    }    
+    parameters {  
+        //gitParameter(branchFilter: 'origin/(.*)', defaultValue: 'develop', name: 'BRANCH', type: 'PT_BRANCH_TAG')
+        string(name: 'PORT', defaultValue: '8888', description: 'Puerto para esta instancia (sobreescribe al que coincida y este ocupandolo)') 
+        string(name: 'APPLICATION_NAME', defaultValue: '${JOB_BASE_NAME}', description: '') 
+        string(name: 'STATIC_IP', defaultValue: '172.22.0.3', description: '')
+        string(name: 'NETWORK', defaultValue: 'red-apis', description: '') 
+        string(name: 'DOCKER_IMAGE', defaultValue: 'mathiasuy/${JOB_BASE_NAME}:latest', description: '') 
+    }
+    environment {
+            name="${JOB_BASE_NAME}"
+            //route="c:/git"
+            SSH_KEY = "/home/mathias/ssh/bitbucket"
+            imagename = "mathiasuy/${JOB_BASE_NAME}"
+            registryCredential = ''
+            dockerImage = ''
+    }    
+    stages {  
+        stage('Wipe') {
+            steps {
+                cleanWs deleteDirs: true, notFailBuild: true
+            }
+        }   
+        stage('Preparando espacio para el contenedor') {
+            steps {
+                sh 'docker container stop $(docker container ls -q --filter name=${JOB_BASE_NAME}_${STATIC_IP}_${PORT}_*) || true && docker container rm $(docker ps -a -q --filter name=${JOB_BASE_NAME}_${STATIC_IP}_${PORT}_*) || true'
+            }
+        }  
+        stage('Aplicando entorno con ip estatica....') {
+            when {
+                expression { env.STATIC_IP != '' }
+            }
+            steps {      
+                sh 'docker run -d -p ${PORT}:8888 --name ${JOB_BASE_NAME}_${STATIC_IP}_${PORT}_${BUILD_ID}  --network ${NETWORK}  --ip ${STATIC_IP} --env APPLICATION_NAME=${APPLICATION_NAME} --env SSH_KEY=${SSH_KEY} localhost:5000/${DOCKER_IMAGE}'
+            }
+        }        
+
+        stage('Renombrando....') {
+            steps {      
+                sh 'docker ps -f name=${JOB_BASE_NAME}'
+            }
+        }
+        stage('Relanzando contenedor....') {
+            steps {
+                sh 'docker restart ${JOB_BASE_NAME}_${STATIC_IP}_${PORT}_${BUILD_ID}'
+            }
+        }        
+    }
+}

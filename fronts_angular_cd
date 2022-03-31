@@ -1,0 +1,51 @@
+pipeline {
+    agent any
+    options {
+        skipStagesAfterUnstable()
+        buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '15'))    
+    }    
+    parameters {  
+        //gitParameter(branchFilter: 'origin/(.*)', defaultValue: 'develop', name: 'BRANCH', type: 'PT_BRANCH_TAG')
+        string(name: 'PORT', defaultValue: '8181', description: 'Puerto para esta instancia (sobreescribe al que coincida y este ocupandolo)') 
+        string(name: 'IP_ADDRESS', defaultValue: '192.168.1.10', description: '') 
+        string(name: 'STATIC_IP', defaultValue: '172.22.0.1', description: '')
+        string(name: 'NETWORK', defaultValue: 'red-apis', description: '')        
+        string(name: 'APPLICATION_NAME', defaultValue: '${JOB_BASE_NAME}', description: '') 
+        string(name: 'API_URL', defaultValue: 'http://192.168.1.10:8181/', description: '') 
+        choice(name: 'PROFILE_ACTIVE', choices: ['test', 'dev', 'prod'], description: 'Perfil de variables de entorno NO FUNCIONA ACA, SOLO EN EL CI.')   
+        string(name: 'DOCKER_IMAGE', defaultValue: 'mathiasuy/${JOB_BASE_NAME}:latest', description: '') 
+    }
+    environment {
+            name="${JOB_BASE_NAME}"
+            //route="c:/git"
+    }    
+    stages {  
+        stage('Wipe') {
+            steps {
+                cleanWs deleteDirs: true, notFailBuild: true
+            }
+        }   
+        stage('Preparando espacio para el contenedor') {
+            steps {
+                sh 'docker container stop $(docker container ls -q --filter name=${JOB_BASE_NAME}_${STATIC_IP}_${PORT}_*) || true && docker container rm $(docker ps -a -q --filter name=${JOB_BASE_NAME}_${STATIC_IP}_${PORT}_*) || true'
+            }
+        }        
+        stage('Aplicando entorno....') {
+            steps {
+                sh 'docker run -d -p ${PORT}:80 --name ${JOB_BASE_NAME}_${STATIC_IP}_${PORT}_${BUILD_ID}  --network ${NETWORK}  --ip ${STATIC_IP}  --env APPLICATION_NAME=${APPLICATION_NAME} --env API_URL=${API_URL} --env PROFILE_ACTIVE=${PROFILE_ACTIVE} localhost:5000/${DOCKER_IMAGE}'
+                sh 'docker ps -f name=${JOB_BASE_NAME}'
+                //sh 'docker cp ${JOB_BASE_NAME}_${IP_ADDRESS}_${PORT}_${BUILD_ID}:/app/build_id build_id'   
+                //sh 'echo La version de la imagen de origen es $(cat build_id)'
+                //sh 'sed -i "s/BUILD_ID/$(cat build_id)/g" server_api-CI/.env'
+                //sh 'cat server_api-CI/.env'
+                //sh 'docker cp server_api-CI/.env ${JOB_BASE_NAME}_${IP_ADDRESS}_${PORT}_${BUILD_ID}:/app'
+                //sh 'docker restart ${JOB_BASE_NAME}_${IP_ADDRESS}_${PORT}_${BUILD_ID}'
+            }
+        }
+        stage('Lanzando contenedor....') {
+            steps {
+                sh 'docker restart ${JOB_BASE_NAME}_${STATIC_IP}_${PORT}_${BUILD_ID}'
+            }
+        }        
+    }
+}

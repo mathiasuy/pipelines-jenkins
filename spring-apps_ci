@@ -1,0 +1,100 @@
+pipeline {
+  environment {
+    imagename = "mathiasuy/${JOB_BASE_NAME}"
+    registryCredential = ''
+    dockerImage = ''
+  }
+    agent any
+    options {
+        skipStagesAfterUnstable()
+        buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '15'))    
+    }    
+    parameters {  
+        //gitParameter(branchFilter: 'origin/(.*)', defaultValue: 'develop', name: 'BRANCH', type: 'PT_BRANCH_TAG')
+        string(name: 'BRANCH', defaultValue: 'master', description: '') 
+        string(name: 'VERSION', defaultValue: '1.0.0', description: '') 
+    }
+    stages {
+        stage('Wipe') {
+            steps {
+                cleanWs deleteDirs: true, notFailBuild: true
+            }
+        }        
+        stage('Clone') {
+            agent {
+                docker {
+                    image 'maven:3.6.3-jdk-13'
+                    args '-u root'
+                }
+            }       
+            stages{
+                stage('Clone') {          
+                    steps {
+                        git branch: '${BRANCH}',  credentialsId: 'mathiasbattistella',  url: 'git@bitbucket.org:proyecto_bitbucket/${JOB_BASE_NAME}.git'   
+                        stash includes: '**', name: 'source' 
+                    }     
+                }
+                stage('Setup') {          
+                    steps {
+                        unstash 'source'          
+                        sh 'java -version'
+                        sh 'mvn versions:set -DnewVersion=${version}.${BUILD_ID}-SNAPSHOT'
+                    }  
+                }
+                stage('Build Libraries') {          
+                    when {
+                        expression { return (findFiles(glob: "libs/*.jar").length > 0) } 
+                    }
+                    steps {
+                        unstash 'source'         
+                        sh 'echo ${FILES}'
+                        sh 'mvn org.apache.maven.plugins:maven-install-plugin:2.5.2:install-file -Dfile=$(echo libs/*.jar)'
+                    } 
+                }
+                stage('Build') {   
+                    steps {
+                        unstash 'source'      
+                        sh 'mvn -B -DskipTests package'
+                        stash includes: 'Dockerfile', name: 'Dockerfile' 
+                        stash includes: 'target/*.jar', name: 'app' 
+                    }
+                }
+            }         
+        }          
+        stage('Armando carpetas') {
+            steps {
+                unstash 'Dockerfile'  
+                unstash 'app'  
+                script{
+                    if(fileExists("/scripts/")){
+                        sh 'mv scripts/* .'
+                    }  
+                }
+                //sh 'mv api-core/target/*.jar .'
+            }
+        }
+    stage('Building image') {
+      steps{
+        script {
+          dockerImage = docker.build imagename
+        }
+      }
+    }
+    stage('Deploy Image') {
+      steps{
+        script {
+          docker.withRegistry( 'http://localhost:5000', '' ) {
+            dockerImage.push("$BUILD_NUMBER")
+             dockerImage.push('latest')
+
+          }
+        }
+      }
+    } 
+    }
+    //post {
+        //success {
+             //archiveArtifacts artifacts: '*.jar, *.bat'
+        //}
+    //}      
+}

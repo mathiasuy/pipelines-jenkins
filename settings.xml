@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="http://maven.apache.org/SETTINGS/1.1.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.1.0 http://maven.apache.org/xsd/settings-1.1.0.xsd">
+  
+  <pluginGroups>
+      <pluginGroup>org.sonarsource.scanner.maven</pluginGroup>
+  </pluginGroups>
+  
+  <profiles>
+        <profile>
+            <id>sonar</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <properties>
+                <!-- Optional URL to server. Default value is http://localhost:9000 -->
+                <sonar.host.url>
+                  http://172.27.0.2:42129
+                </sonar.host.url>
+                <sonar.login>4b45a974cb2780eda0540456dbdd9ac3055ada4f</sonar.login>
+            </properties>
+        </profile>
+  </profiles>
+
+  <activeProfiles>
+    <activeProfile>sonar</activeProfile>
+  </activeProfiles>
+
+  <servers>
+    <server>
+      <id>mathiasuy</id>
+      <username>deployment</username>
+      <password>deployment123</password>
+    </server>
+    <server>
+      <id>nexus-snapshots</id>
+      <username>admin</username>
+      <password>admin123</password>
+    </server>
+    <server>
+      <id>nexus-releases</id>
+      <username>admin</username>
+      <password>admin123</password>
+    </server>
+  </servers>
+
+  <mirrors>
+    <mirror>
+      <id>mathiasuy</id>
+      <name>mathiasuy</name>
+      <url>http://192.168.1.10:8081/nexus/content/repositories/mathiasuy</url>
+      <mirrorOf>*,!central</mirrorOf>
+    </mirror>
+    <mirror>
+      <id>central</id>
+      <name>central</name>
+      <url>http://192.168.1.10:8081/nexus/content/repositories/central</url>
+      <mirrorOf>*</mirrorOf>
+    </mirror>
+  </mirrors>
+
+</settings>

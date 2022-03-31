@@ -1,0 +1,68 @@
+pipeline {
+  environment {
+    imagename = "mathiasuy/${JOB_BASE_NAME}"
+    registryCredential = ''
+    dockerImage = ''
+  }
+    agent any
+    options {
+        skipStagesAfterUnstable()
+        buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '15'))    
+    }    
+    parameters {  
+        //gitParameter(branchFilter: 'origin/(.*)', defaultValue: 'develop', name: 'BRANCH', type: 'PT_BRANCH_TAG')
+        string(name: 'BRANCH', defaultValue: 'develop', description: '') 
+        string(name: 'VERSION', defaultValue: '1.0.0', description: '') 
+        string(name: 'BUILD_PARAMETERS', defaultValue: '--aot --outputHashing=all ', description: '') 
+        choice(name: 'PROFILE_ACTIVE', choices: ['', '--configuration=testing', '--configuration=develop', '--configuration=production'], description: 'Perfil de variables de entorno')    
+    }
+    stages {
+        stage('Clone') {
+            agent {
+                docker {
+                    image 'node:10-alpine'
+                    args '-u root'
+                }
+            }       
+            stages{
+                stage('Clone') {          
+                    steps {
+                        cleanWs deleteDirs: true, notFailBuild: true
+                        git branch: '${BRANCH}',  credentialsId: 'mathiasbattistella',  url: 'git@bitbucket.org:proyecto_bitbucket/${JOB_BASE_NAME}.git'   
+                        sh 'mv -v cliente/* .'    
+                        sh 'node --version'
+                        sh "sed -i 's/ng build/ng build ${BUILD_PARAMETERS} ${PROFILE_ACTIVE}/g' package.json"
+                        sh 'npm install --save rxjs-compat '
+                        sh 'npm run build'
+                        stash includes: 'dist/**', name: 'app' 
+                    }     
+                }
+            }         
+        }          
+        stage('Generando Imagen del servicio...') {
+            agent any  
+            stages{
+                stage('img') {          
+                    steps {
+                        cleanWs deleteDirs: true, notFailBuild: true
+                        unstash 'app'  
+                        sh 'docker run -d --name ${JOB_BASE_NAME}_${BUILD_ID}_temp nginx:alpine'    
+                        sh 'docker cp dist/. ${JOB_BASE_NAME}_${BUILD_ID}_temp:/usr/share/nginx/html/'
+                        sh 'docker commit ${JOB_BASE_NAME}_${BUILD_ID}_temp mathiasuy/${JOB_BASE_NAME}:${BUILD_ID}'
+                        sh 'docker image tag mathiasuy/${JOB_BASE_NAME}:${BUILD_ID} localhost:5000/mathiasuy/${JOB_BASE_NAME}:${BUILD_ID}'
+                        sh 'docker image tag mathiasuy/${JOB_BASE_NAME}:${BUILD_ID} localhost:5000/mathiasuy/${JOB_BASE_NAME}:latest'
+                        sh 'docker image push localhost:5000/mathiasuy/${JOB_BASE_NAME}:${BUILD_ID}'
+                        sh 'docker image push localhost:5000/mathiasuy/${JOB_BASE_NAME}:latest'
+                        sh 'docker rm -f ${JOB_BASE_NAME}_${BUILD_ID}_temp'
+                        sh 'docker image ls'
+                    }
+                }
+            }                      
+        }                  
+    }
+    //post {
+        //success {
+             //archiveArtifacts artifacts: '*.jar, *.bat'
+        //}
+    //}      
+}
