@@ -18,6 +18,7 @@ pipeline {
         stage('Wipe') {
             steps {
                 cleanWs deleteDirs: true, notFailBuild: true
+                sh 'echo ${USER}'
             }
         }        
         stage('Clone') {
