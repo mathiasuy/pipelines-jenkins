@@ -30,7 +30,7 @@ pipeline {
             stages{
                 stage('Clone') {          
                     steps {
-                        git branch: '${BRANCH}',  credentialsId: 'mathiasbattistella',  url: 'git@bitbucket.org:proyecto_bitbucket/${JOB_BASE_NAME}.git'   
+                        git branch: '${BRANCH}',  credentialsId: 'github_mathiasuy',  url: 'git@github.com:mathiasuy/${JOB_BASE_NAME}.git'   
                         stash includes: '**', name: 'source' 
                     }     
                 }
